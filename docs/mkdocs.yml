@@ -2,5 +2,3 @@ site_name: SCTB AuroraBorealis Docs
 theme: readthedocs
 nav:
   - Головна: index.md
-  - API (бекенд): api.md
-  - Site (фронтенд): site.md
