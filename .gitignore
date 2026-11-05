@@ -26,3 +26,6 @@ rustc-ice-*.txt
 # Documentation
 docs/_build/
 docs/site
+
+release-server/
+release-app/

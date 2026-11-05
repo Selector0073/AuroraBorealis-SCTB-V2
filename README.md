@@ -13,6 +13,7 @@ Make sure you have the following installed:
 - [Git](https://git-scm.com/)
 - [Make](https://www.gnu.org/software/make/)
 - [Python](https://www.python.org/) 3.14+ and [Poetry](https://python-poetry.org/)
+- [BetterComments](https://marketplace.visualstudio.com/items?itemName=aaron-bond.better-comments) (recomended)
 
 
 ## Run locally
