@@ -32,7 +32,7 @@ release-arbiter: cleaner
 	@mkdir release-arbiter
 	@cp -a arbiter/scripts/. release-arbiter/
 	@echo "Building arbiter..."
-	@cd arbiter/arbiter-nim && nimble buildlib
+	@cd arbiter/arbiter && nimble buildlib
 	@echo "Arbiter release created successfully"
 
 arbiter-test-run: release-arbiter

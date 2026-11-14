@@ -9,7 +9,6 @@ jobs:
   build-and-release:
     name: Build, Package, Sign and Publish
     runs-on: ubuntu-latest
-    
     permissions:
       contents: write
 
@@ -28,41 +27,42 @@ jobs:
       - name: Compile release binaries via Makefile
         run: make release-arbiter
 
-      - name: Import GPG Private Key
+      - name: Import GPG private key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
-          gpg --list-secret-keys --keyid-format LONG
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --yes --import
+          FPR=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')
+          echo "GPG_FPR=$FPR" >> "$GITHUB_ENV"
 
-      - name: Export Public Key, Package and Sign
+      - name: Package and sign
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          TARGET_DIR="release"
-          
-          if [ ! -d "$TARGET_DIR" ]; then
-            echo "Error: Directory $TARGET_DIR not found."
-            exit 1
-          fi
+          set -euo pipefail
+          TARGET_DIR="release-arbiter"
+          [ -d "$TARGET_DIR" ] || { echo "Error: $TARGET_DIR not found"; exit 1; }
 
-          echo "Exporting public GPG key to $TARGET_DIR/.env..."
-          gpg --armor --export > "$TARGET_DIR/.env"
+          ARCHIVE="release-arbiter-${{ github.ref_name }}.tar.gz"
+          tar -czf "$ARCHIVE" -C "$TARGET_DIR" .
 
-          VERSION_TAG="${{ github.ref_name }}"
-          ARCHIVE_NAME="release-${VERSION_TAG}.tar.gz"
-
-          echo "Creating archive: $ARCHIVE_NAME"
-          tar -czf "$ARCHIVE_NAME" -C "$TARGET_DIR" .
-
-          echo "Signing archive: $ARCHIVE_NAME"
-          gpg --batch --pinentry-mode loopback \
+          gpg --batch --yes --pinentry-mode loopback \
               --passphrase "$GPG_PASSPHRASE" \
-              --detach-sign --armor "$ARCHIVE_NAME"
+              --local-user "$GPG_FPR" \
+              --detach-sign --armor "$ARCHIVE"
 
-      - name: Create GitHub Release and Upload Assets
+          gpg --armor --export "$GPG_FPR" > public-key.asc
+
+          export GNUPGHOME="$(mktemp -d)"
+          gpg --batch --import public-key.asc
+          gpg --batch --verify "$ARCHIVE.asc" "$ARCHIVE"
+
+      - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-*.tar.gz
-            release-*.tar.gz.asc
+            release-arbiter-*.tar.gz
+            release-arbiter-*.tar.gz.asc
+            public-key.asc
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
