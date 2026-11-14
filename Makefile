@@ -3,40 +3,40 @@
 help:
 	@echo "cleaner - clear all folders of old instances"
 	@echo ""
-	@echo "    SERVER"
-	@echo "release-server - create a \"release-server\" folder with files ready for execution on server"
-	@echo "server-test - to run tests"
-	@echo "server-test-run - run temporary docker OS for testing"
+	@echo "    ARBITER"
+	@echo "release-arbiter - create a \"release-arbiter\" folder with files ready for execution on server"
+	@echo "arbiter-test - to run tests"
+	@echo "arbiter-test-run - run temporary docker OS for testing"
 	@echo ""
 	@echo "    APP"
 	@echo "release-app - create a \"release-app\" folder with files ready for execution on client"
 	@echo "app-run - to run project live"
 	@echo "app-test - to run tests"
 	@echo ""
-	@echo "    Docs"
-	@echo "docs-run - to run live docs server"
+	@echo "    DOCS"
+	@echo "docs-run - to run live docs arbiter"
 	@echo "docs-build - to build docs"
 
 
 
 cleaner:
 	@echo "Cleaning..."
-	@rm -rf release-server
+	@rm -rf release-arbiter
 	@rm -rf release-app
 	@echo "Cleaning successfull"
 
 
 
-release-server: cleaner
-	@echo "Creating server release..."
-	@mkdir release-server
-	@cp -a server/scripts/. release-server/
-	@cd server && cargo build --release
-	find server/target/release/ -maxdepth 1 -type f -executable -exec cp {} release-server/ \;
-	@echo "Server release created successfully"
+release-arbiter: cleaner
+	@echo "Creating arbiter release..."
+	@mkdir release-arbiter
+	@cp -a arbiter/scripts/. release-arbiter/
+	@echo "Building arbiter..."
+	@cd arbiter/arbiter-nim && nimble buildlib
+	@echo "Arbiter release created successfully"
 
-server-test-run: release-server
-	@docker build -t single-use-os -f server/Dockerfile .
+arbiter-test-run: release-arbiter
+	@docker build -t single-use-os -f arbiter/Dockerfile .
 	@docker rm -f single-use-os >/dev/null 2>&1 || true
 	@docker run -d --rm --name single-use-os --hostname clean-server \
 		--cgroupns=host \
@@ -48,7 +48,7 @@ server-test-run: release-server
 	docker exec single-use-os systemctl is-system-running --wait >/dev/null 2>&1 || true; \
 	docker exec -it single-use-os bash -l || true
 
-server-test: 
+arbiter-test: 
 	@echo "Not ready"
 
 

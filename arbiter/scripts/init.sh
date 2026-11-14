@@ -1,11 +1,11 @@
 #!/bin/bash
 
-PROJECT_NAME="server_app"
+PROJECT_NAME="arbiter"
+VERSION="v0.1"
 DIR="$(dirname "$0")"
 source "$DIR/install_software.sh"
 source "$DIR/setup.sh"
 [ "$(id -u)" -eq 0 ] && SUDO="" || SUDO="sudo"
-
 
 
 #* Check sudo
@@ -13,7 +13,6 @@ if [[ $EUID -ne 0 ]]; then
     echo "Run the script as root (e.g. via sudo)." >&2
     exit 1
 fi
-
 
 
 #* Check OS
@@ -27,14 +26,14 @@ fi
 
 
 #* Create config
-echo "[main]
+echo "\
 project_name = ${PROJECT_NAME}
-host_id_like= ${HOST_ID_LIKE}" > config.toml
+host_id_like = ${HOST_ID_LIKE}
+version = ${VERSION}" > config.toml
 
 
 #* Update system
 os_setup "$HOST_ID_LIKE"
-
 
 
 #* Check whiptail
@@ -47,7 +46,6 @@ if ! command -v whiptail &>/dev/null; then
 fi
 
 
-
 #* Choose setup options 
 CHOICES=$(whiptail --title "Setup config" --checklist \
 "Select components for installation (Space - select, Enter - confirm):" 20 70 8 \
@@ -56,7 +54,6 @@ CHOICES=$(whiptail --title "Setup config" --checklist \
 "nginx" "Nginx" OFF \
 "firewall" "UFW firewall" ON \
 "ssl" "Lets Encrypt sertificates" OFF \
-"new-user" "Create new user" ON \
 "failure-reporter" "Enable failure reporter service" ON 3>&1 1>&2 2>&3)
 
 exit_status=$?
@@ -66,7 +63,7 @@ if [ $exit_status -ne 0 ]; then
 fi
 [ -z "$CHOICES" ] && { echo "No options chosen."; exit 0; }
 
-declare -A OPTS=( [ssh]=False [security]=False [nginx]=False [firewall]=False [ssl]=False [new-user]=False [failure-reporter]=False)
+declare -A OPTS=( [ssh]=False [security]=False [nginx]=False [firewall]=False [ssl]=False [failure-reporter]=False)
 
 for item in $CHOICES; do
     name="${item//\"/}"
@@ -86,9 +83,6 @@ for item in $CHOICES; do
         ssl) 
             setup_ssl "$HOST_ID_LIKE"
             OPTS[ssl]=True ;;
-        new-user)
-            setup_user 
-            OPTS[new-user]=True ;;
         failure-reporter)
             failure-reporter
             OPTS[failure-reporter]=True ;;
@@ -98,6 +92,11 @@ done
 for key in "${!OPTS[@]}"; do
     echo "${key}=${OPTS[$key]}" >> config.toml
 done
+
+
+
+#* Create new user
+./user.sh
 
 
 

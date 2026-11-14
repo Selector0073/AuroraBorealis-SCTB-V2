@@ -1,0 +1,68 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build, Package, Sign and Publish
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Nim environment
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: 'stable'
+
+      - name: Execute test suite via Makefile
+        run: make arbiter-test
+
+      - name: Compile release binaries via Makefile
+        run: make release-arbiter
+
+      - name: Import GPG Private Key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: Export Public Key, Package and Sign
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          TARGET_DIR="release"
+          
+          if [ ! -d "$TARGET_DIR" ]; then
+            echo "Error: Directory $TARGET_DIR not found."
+            exit 1
+          fi
+
+          echo "Exporting public GPG key to $TARGET_DIR/.env..."
+          gpg --armor --export > "$TARGET_DIR/.env"
+
+          VERSION_TAG="${{ github.ref_name }}"
+          ARCHIVE_NAME="release-${VERSION_TAG}.tar.gz"
+
+          echo "Creating archive: $ARCHIVE_NAME"
+          tar -czf "$ARCHIVE_NAME" -C "$TARGET_DIR" .
+
+          echo "Signing archive: $ARCHIVE_NAME"
+          gpg --batch --pinentry-mode loopback \
+              --passphrase "$GPG_PASSPHRASE" \
+              --detach-sign --armor "$ARCHIVE_NAME"
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-*.tar.gz
+            release-*.tar.gz.asc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

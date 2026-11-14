@@ -40,7 +40,7 @@ RUN systemctl mask \
         sys-kernel-tracing.mount \
         dev-hugepages.mount
 
-COPY release-server/ /root/release/
+COPY release-arbiter/ /root/release/
 
 WORKDIR /root/release
 
