@@ -5,6 +5,7 @@ author        = "AuroraBorealis"
 description   = "arbiter nim part"
 license       = "MIT"
 srcDir        = "src"
+bin           = @["arbiter_updater", "connector"]
 
 
 # Dependencies
@@ -12,16 +13,12 @@ srcDir        = "src"
 requires "nim >= 2.4.0"
 
 
-task buildlib, "Build Nim arbiter static lib":
+task release, "Compile all project binaries and pack into release-arbiter":
     let root = thisDir() & "/../.."
-    mkDir root & "/release-arbiter"
+    let releaseDir = root & "/release-arbiter"
+
+    mkDir releaseDir
     withDir thisDir():
-        exec "nim c" &
-            " --app:staticlib" &
-            " --mm:arc" &
-            " --threads:on" &
-            " --passC:-fPIC" &
-            " -d:release" &
-            " --nimcache:" & root & "/target/nimcache" &
-            " --out:" & root & "/release-arbiter/libarbiter_nim.a" &
-            " src/arbiter_nim.nim"
+        for b in bin:
+            exec "nim c -d:release --opt:speed --outdir:" & releaseDir &
+                " " & srcDir & "/" & b & ".nim"

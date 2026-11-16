@@ -2,3 +2,4 @@ site_name: SCTB AuroraBorealis Docs
 theme: readthedocs
 nav:
   - Головна: index.md
+  - Arbiter (nim): docs-arbiter/theindex.html

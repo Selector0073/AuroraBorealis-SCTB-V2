@@ -1,3 +1,10 @@
+SRC_DIR     ?= arbiter/arbiter/src
+DOC_DIR     ?= docs/docs/docs-arbiter
+
+GIT_URL     ?= https://github.com/Selector0073/AuroraBorealis-SCTB-V2/
+GIT_COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo main)
+
+
 .PHONY: help
 
 help:
@@ -7,6 +14,7 @@ help:
 	@echo "release-arbiter - create a \"release-arbiter\" folder with files ready for execution on server"
 	@echo "arbiter-test - to run tests"
 	@echo "arbiter-test-run - run temporary docker OS for testing"
+	@echo "docs-arbiter - generate auto docs"
 	@echo ""
 	@echo "    APP"
 	@echo "release-app - create a \"release-app\" folder with files ready for execution on client"
@@ -23,16 +31,29 @@ cleaner:
 	@echo "Cleaning..."
 	@rm -rf release-arbiter
 	@rm -rf release-app
+	@rm -rf docs/docs/$(DOC_DIR)
 	@echo "Cleaning successfull"
 
 
+
+docs-arbiter: cleaner
+	@mkdir -p $(DOC_DIR)
+	@for m in $(wildcard $(SRC_DIR)/*.nim); do \
+		echo ">> nim doc $$m"; \
+		nim doc --index:on --hints:off \
+			--git.url:$(GIT_URL) --git.commit:$(GIT_COMMIT) --git.devel:main \
+			--outdir:$(DOC_DIR) $$m || exit 1; \
+	done
+	@echo ">> buildIndex"
+	nim buildIndex -o:$(DOC_DIR)/theindex.html $(DOC_DIR)
+	@echo "Готово: $(DOC_DIR)/theindex.html"
 
 release-arbiter: cleaner
 	@echo "Creating arbiter release..."
 	@mkdir release-arbiter
 	@cp -a arbiter/scripts/. release-arbiter/
 	@echo "Building arbiter..."
-	@cd arbiter/arbiter && nimble buildlib
+	@cd arbiter/arbiter && nimble release
 	@echo "Arbiter release created successfully"
 
 arbiter-test-run: release-arbiter
@@ -64,10 +85,10 @@ app-test:
 
 
 
-docs-run:
+docs-run: docs-arbiter
 	@echo "Running docs server..."
 	@cd docs && poetry run mkdocs serve
 
-docs-build:
+docs-build: docs-arbiter
 	@echo "Building docs..."
 	@cd docs && poetry run mkdocs build
