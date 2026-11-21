@@ -12,9 +12,9 @@ import std/sequtils
 import conf
 import mailer
 
+const USERNAME {.strdefine.} = "Selector0073"
+const REPO {.strdefine.} = "AuroraBorealis-SCTB-V2"
 const
-    USERNAME = "Selector0073"
-    REPO = "AuroraBorealis-SCTB-V2"
     DOWNLOAD_FILE = "arbiter.tar.gz"
     OUTPUT_FILE = "latest.tar.gz"
 

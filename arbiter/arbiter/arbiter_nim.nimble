@@ -11,6 +11,7 @@ bin           = @["arbiter_updater", "connector"]
 # Dependencies
 
 requires "nim >= 2.4.0"
+requires "db_connector >= 0.1.0"
 
 
 task release, "Compile all project binaries and pack into release-arbiter":

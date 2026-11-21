@@ -5,12 +5,12 @@ import std/os
 import std/strutils
 
 let HOME = getEnv("HOME")
-const PROJECT_NAME = "arbiter"
+const APP_NAME {.strdefine.} = "varden"
 
 
 
 proc add_conf*(param, value: string) =
-    let f = open(fmt"{HOME}/.config/{PROJECT_NAME}/config.toml", fmAppend)
+    let f = open(fmt"{HOME}/.config/{APP_NAME}/config.toml", fmAppend)
     defer: f.close()
     f.writeLine(fmt"{param}={value}")
 
@@ -18,16 +18,16 @@ proc add_conf*(param, value: string) =
 
 proc read_conf*(param = "all"): string =
     if param == "all":
-        return readFile(fmt"{HOME}/.config/{PROJECT_NAME}/config.toml")
+        return readFile(fmt"{HOME}/.config/{APP_NAME}/config.toml")
     else:
-        for line in lines(fmt"{HOME}/.config/{PROJECT_NAME}/config.toml"):
+        for line in lines(fmt"{HOME}/.config/{APP_NAME}/config.toml"):
             if line.contains(param):
                 return line.split('=', maxsplit = 1)[1]
 
 
 
 proc update_conf*(param, new_value: string) =
-    let filePath = fmt"{HOME}/.config/{PROJECT_NAME}/config.toml"
+    let filePath = fmt"{HOME}/.config/{APP_NAME}/config.toml"
     var linesSeq = readFile(filePath).splitLines()
 
     for i in 0 ..< linesSeq.len:

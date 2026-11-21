@@ -2,58 +2,90 @@
 
 import std/strformat
 import std/os
-import std/json
-import std/httpclient
+# import std/httpclient     for telegram API
+import std/times
+import db_connector/db_sqlite
+import std/options 
+import std/strutils
 
-import conf
+# import conf       to check where to send messages
 
 
 let HOME = getEnv("HOME")
-const QUEUE_FILE = "messages.json"
-const PROJECT_NAME = "arbiter"
+const APP_NAME {.strdefine.} = "varden"
+const QUEUE_FILE = "db.db"
 
-let queue_file_path = fmt"{HOME}/.config/{PROJECT_NAME}/{QUEUE_FILE}"
+let queue_file_path = fmt"{HOME}/.config/{APP_NAME}/{QUEUE_FILE}"
+
+type
+    Category = enum
+        categInfo = "info"
+        categWarning = "warning"
+        categError = "error"
+
+    Message = object
+        id: int64
+        category: Category
+        message: string
+        module: string
+        log: string
+        created_on: DateTime
 
 
 
-proc loadQueue(path = queue_file_path): JsonNode =
-    if not fileExists(path):
-        return %* {"messages": []}
-    try:
-        result = parseFile(path)
-        if not result.hasKey("messages") or result["messages"].kind != JArray:
-            result = %* {"messages": []}
-    except CatchableError:
-        result = %* {"messages": []}
+const createTableSql = sql"""
+    CREATE TABLE IF NOT EXISTS queue (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        category   TEXT    NOT NULL CHECK (category IN ('info', 'warning', 'error')),
+        message    TEXT    NOT NULL,
+        module     TEXT    NOT NULL,
+        log        TEXT    NOT NULL,
+        created_on INTEGER NOT NULL
+    );"""
 
-proc saveQueue(q: JsonNode, path = queue_file_path) =
-    createDir(parentDir(path))
-    let tmp = path & ".tmp"
-    writeFile(tmp, q.pretty())
-    moveFile(tmp, path)
 
-proc hasMessages(path = queue_file_path): bool =
-    loadQueue(path)["messages"].len > 0
+proc open_db(): DbConn =
+    result = open(queue_file_path, "", "", "")
+    result.exec(createTableSql)
 
-iterator pendingMessages(path = queue_file_path): JsonNode =
-    let q = loadQueue(path)
-    for msg in q["messages"]:
-        yield msg
 
-proc enqueue(msg: JsonNode, path = queue_file_path) =
-    let q = loadQueue(path)
-    q["messages"].add(msg)
-    saveQueue(q, path)
+proc add_to_queue(msg: Message) =
+    let db = open_db()
+    defer: db.close()
+    db.exec(sql"INSERT INTO queue (category, message, module, log, created_on) VALUES (?, ?, ?, ?, ?);",
+            $msg.category, msg.message, msg.module, msg.log, $msg.created_on)
 
-proc removeMessage(msg: JsonNode, path = queue_file_path): bool =
-    let q = loadQueue(path)
-    let arr = q["messages"]
-    for i in 0 ..< arr.len:
-        if arr[i] == msg:
-            arr.elems.delete(i)
-            saveQueue(q, path)
-            return true
-    false
+
+proc remove_from_queue(id: int64) =
+    let db = open_db()
+    defer: db.close()
+    db.exec(sql"DELETE FROM queue WHERE id = ?;", $id)
+
+
+proc parseMessage(row: Row): Message =
+    result.id = parseBiggestInt(row[0])
+    result.category = parseEnum[Category](row[1])
+    result.message = row[2]
+    result.module = row[3]
+    result.log = row[4]
+    result.created_on = fromUnix(parseBiggestInt(row[5])).utc()
+
+
+proc get_queue_element(): Option[Message] =
+    let db = open_db()
+    defer: db.close()
+
+    let rows = db.getAllRows(sql"""
+        SELECT *
+        FROM queue
+        ORDER BY id ASC
+        LIMIT 1;
+        """)
+
+    if rows.len == 0:
+        return none(Message)
+
+    return some(parseMessage(rows[0]))
 
 
 
@@ -61,70 +93,45 @@ proc removeMessage(msg: JsonNode, path = queue_file_path): bool =
 
 
 
-proc send_app(msg: JsonNode): bool =
-    ## Має повертати true, лише якщо повідомлення реально доставлено.
-    false
-
-
-
-proc sendTelegram(msg: JsonNode, token: string = read_conf("TELEGRAM_BOT_TOKEN")): bool =
-    if token.len == 0 or msg.isNil or msg.kind != JObject:
-        return false
-
-    let client = newHttpClient(timeout = 10_000)
-    defer: client.close()
-    client.headers = newHttpHeaders({"Content-Type": "application/json"})
-
+proc send_to_app(msg: Message): bool =
     try:
-        let resp = client.post(
-            "https://api.telegram.org/bot" & token & "/sendMessage",
-            body = $msg
-        )
-        if resp.code != Http200:
-            return false
-        let data = parseJson(resp.body)
-        return data.getOrDefault("ok").getBool(false)
+        # TODO: Відправка повідомлення в додаток
+        return true
     except CatchableError:
         return false
 
 
-
-proc deliver(msg: JsonNode): bool =
-    case read_conf("msg_type")
-    of "app":
-        send_app(msg)
-    of "telegram":
-        let a = send_app(msg)
-        let t = send_telegram(msg)
-        a and t
-    else:
-        false
+proc flush_queue(): bool =
+    while true:
+        let item = get_queue_element()
+        if item.isNone:
+            return true
+        let msg = item.get
+        if not send_to_app(msg):
+            return false
+        remove_from_queue(msg.id)
 
 
+proc send_msg*(category_input, message_input, module_input: string, log_input = "") =
+    let msg = Message(
+        category: parseEnum[Category](category_input),
+        message: message_input,
+        module: module_input,
+        log: log_input,
+        created_on: now().utc()
+    )
 
-proc send_msg*(category, message, module: string, log = "") =
-    let msg = %* {
-        "category": category,
-        "message": message,
-        "module": module,
-        "log": log
-    }
+    if flush_queue() and send_to_app(msg):
+        return
 
-    if not deliver(msg):
-        enqueue(msg)
-    echo category, "\n", message, module, log
+    add_to_queue(msg)
+
+
+
+#* ---
 
 
 
 when isMainModule:
-    if not hasMessages():
-        quit(0)
+    discard flush_queue()
 
-    var sent, failed = 0
-    for msg in pendingMessages():
-        if deliver(msg) and removeMessage(msg):
-            inc sent
-        else:
-            inc failed
-
-    quit(if failed > 0: 1 else: 0)

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROJECT_NAME="arbiter"
+PROJECT_NAME="varden"
 VERSION="v0.1"
 DIR="$(dirname "$0")"
 source "$DIR/install_software.sh"
